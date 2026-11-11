@@ -1,0 +1,6 @@
+{
+  "appId": "com.zayan.mushaf",
+  "appName": "مصحف كريم",
+  "webDir": "www",
+  "server": { "androidScheme": "https" }
+}
