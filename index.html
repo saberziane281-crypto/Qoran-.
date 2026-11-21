@@ -79,10 +79,13 @@ const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const P=Object.assign({theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',fs:28,speed:1,auto:true,rep:'off'},ld('prefs',{}));
 let BM=ld('bm',[]),ci=0,surah=1,els=[],tm=[],txt=[],idx=-1,repA=0,stopEnd=false,sleepT=null,wl=null,last=0,resume=ld('pos',null),tok=0,objUrl=null,have={},inflight=new Set(),toastT;
 const audio=new Audio();audio.preload='auto';
-const MS=(window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.MediaSession)||null;
-const msCall=(f,a,b)=>{try{const r=MS&&MS[f](a,b);r&&r.catch&&r.catch(()=>{})}catch(e){}};
-const msState=s=>msCall('setPlaybackState',{playbackState:s});
-const msMeta=()=>msCall('setMetadata',{title:Q[surah-1][0],artist:RECS[ci].label,album:'مصحف كريم'});
+const Bg=(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()&&Capacitor.registerPlugin)?Capacitor.registerPlugin('Bg'):null;
+let bgOn=false;
+function bgSet(on){
+  if(!Bg||on===bgOn)return;
+  bgOn=on;
+  try{const r=on?Bg.start():Bg.stop();r&&r.catch&&r.catch(()=>{})}catch(e){}
+}
 const url=(r,n)=>r.server+pad(n)+'.mp3';
 
 /* ---------- IndexedDB ---------- */
@@ -198,7 +201,7 @@ async function loadAudio(play){
 audio.onerror=()=>{setPlay(false);toast('هذه السورة غير محمّلة. اتصل بالإنترنت أو حمّلها من القارئ.')};
 async function setPlay(p,silent){
   $('pp').textContent=p?'⏸':'▶';
-  if(!silent){if(p)msMeta();msState(p?'playing':'paused')}
+  if(!silent)bgSet(p);
   try{if(p&&navigator.wakeLock&&!wl)wl=await navigator.wakeLock.request('screen');else if(!p&&wl){wl.release();wl=null}}catch(e){}
 }
 function mark(i){if(i===idx)return;idx=i;els.forEach((e,k)=>e.classList.toggle('on',k===i));if(i>=0)els[i]?.scrollIntoView({behavior:'smooth',block:'center'})}
@@ -224,12 +227,6 @@ $('pp').onclick=toggle;
 const go=d=>{const n=surah+d;if(n<1||n>114)return;$('sur').value=n;loadText(!audio.paused)};
 $('nx').onclick=()=>go(1);$('pv').onclick=()=>go(-1);
 $('sur').onchange=()=>loadText(!audio.paused);
-if(MS){
-  msCall('setActionHandler',{action:'play'},()=>{audio.play().then(()=>setPlay(true)).catch(()=>{})});
-  msCall('setActionHandler',{action:'pause'},()=>{audio.pause();setPlay(false)});
-  msCall('setActionHandler',{action:'nexttrack'},()=>go(1));
-  msCall('setActionHandler',{action:'previoustrack'},()=>go(-1));
-}
 try{const ms=navigator.mediaSession;ms.setActionHandler('play',toggle);ms.setActionHandler('pause',toggle);ms.setActionHandler('nexttrack',()=>go(1));ms.setActionHandler('previoustrack',()=>go(-1))}catch(e){}
 
 /* ---------- التحميل لكل قارئ ---------- */
