@@ -35,14 +35,28 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Keep audio playing in background
+      - name: Background audio support
         run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n</manifest>#' $M
           cat > android/app/src/main/java/com/zayan/mushaf/MainActivity.java <<'EOF'
           package com.zayan.mushaf;
 
+          import android.os.Build;
+          import android.os.Bundle;
           import com.getcapacitor.BridgeActivity;
 
           public class MainActivity extends BridgeActivity {
+            @Override
+            public void onCreate(Bundle savedInstanceState) {
+              super.onCreate(savedInstanceState);
+              if (Build.VERSION.SDK_INT >= 33
+                  && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                      != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 1);
+              }
+            }
+
             @Override
             public void onPause() {
               super.onPause();
