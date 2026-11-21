@@ -79,6 +79,10 @@ const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const P=Object.assign({theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',fs:28,speed:1,auto:true,rep:'off'},ld('prefs',{}));
 let BM=ld('bm',[]),ci=0,surah=1,els=[],tm=[],txt=[],idx=-1,repA=0,stopEnd=false,sleepT=null,wl=null,last=0,resume=ld('pos',null),tok=0,objUrl=null,have={},inflight=new Set(),toastT;
 const audio=new Audio();audio.preload='auto';
+const MS=(window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.MediaSession)||null;
+const msCall=(f,a,b)=>{try{const r=MS&&MS[f](a,b);r&&r.catch&&r.catch(()=>{})}catch(e){}};
+const msState=s=>msCall('setPlaybackState',{playbackState:s});
+const msMeta=()=>msCall('setMetadata',{title:Q[surah-1][0],artist:RECS[ci].label,album:'مصحف كريم'});
 const url=(r,n)=>r.server+pad(n)+'.mp3';
 
 /* ---------- IndexedDB ---------- */
@@ -180,7 +184,7 @@ async function saveSurah(r,n,st){
   inflight.delete(k);
 }
 async function loadAudio(play){
-  const r=RECS[ci],my=++tok;audio.pause();setPlay(false);tm=[];
+  const r=RECS[ci],my=++tok;audio.pause();setPlay(false,true);tm=[];
   getTimes(r,surah).then(t=>{if(my===tok&&t.length===txt.length)tm=t});
   let b=null;try{b=await get('a:'+r.id+':'+surah)}catch(e){}
   if(my!==tok)return;
@@ -191,9 +195,10 @@ async function loadAudio(play){
   if(play)audio.play().then(()=>setPlay(true)).catch(()=>{});
   try{navigator.mediaSession.metadata=new MediaMetadata({title:Q[surah-1][0],artist:r.label})}catch(e){}
 }
-audio.onerror=()=>toast('هذه السورة غير محمّلة. اتصل بالإنترنت أو حمّلها من الإعدادات.');
-async function setPlay(p){
+audio.onerror=()=>{setPlay(false);toast('هذه السورة غير محمّلة. اتصل بالإنترنت أو حمّلها من القارئ.')};
+async function setPlay(p,silent){
   $('pp').textContent=p?'⏸':'▶';
+  if(!silent){if(p)msMeta();msState(p?'playing':'paused')}
   try{if(p&&navigator.wakeLock&&!wl)wl=await navigator.wakeLock.request('screen');else if(!p&&wl){wl.release();wl=null}}catch(e){}
 }
 function mark(i){if(i===idx)return;idx=i;els.forEach((e,k)=>e.classList.toggle('on',k===i));if(i>=0)els[i]?.scrollIntoView({behavior:'smooth',block:'center'})}
@@ -209,9 +214,9 @@ audio.ontimeupdate=()=>{
 };
 audio.onended=()=>{
   if(P.rep==='surah'){audio.currentTime=0;audio.play();return}
+  if(stopEnd){stopEnd=false;$('slp').value='0';setPlay(false);return}
+  if(P.auto&&surah<114){$('sur').value=surah+1;loadText(true);return}
   setPlay(false);
-  if(stopEnd){stopEnd=false;$('slp').value='0';return}
-  if(P.auto&&surah<114){$('sur').value=surah+1;loadText(true)}
 };
 $('sk').oninput=e=>{if(isFinite(audio.duration))audio.currentTime=e.target.value/1000*audio.duration};
 const toggle=()=>{audio.paused?audio.play().then(()=>setPlay(true)).catch(()=>{}):(audio.pause(),setPlay(false))};
@@ -219,6 +224,12 @@ $('pp').onclick=toggle;
 const go=d=>{const n=surah+d;if(n<1||n>114)return;$('sur').value=n;loadText(!audio.paused)};
 $('nx').onclick=()=>go(1);$('pv').onclick=()=>go(-1);
 $('sur').onchange=()=>loadText(!audio.paused);
+if(MS){
+  msCall('setActionHandler',{action:'play'},()=>{audio.play().then(()=>setPlay(true)).catch(()=>{})});
+  msCall('setActionHandler',{action:'pause'},()=>{audio.pause();setPlay(false)});
+  msCall('setActionHandler',{action:'nexttrack'},()=>go(1));
+  msCall('setActionHandler',{action:'previoustrack'},()=>go(-1));
+}
 try{const ms=navigator.mediaSession;ms.setActionHandler('play',toggle);ms.setActionHandler('pause',toggle);ms.setActionHandler('nexttrack',()=>go(1));ms.setActionHandler('previoustrack',()=>go(-1))}catch(e){}
 
 /* ---------- التحميل لكل قارئ ---------- */
