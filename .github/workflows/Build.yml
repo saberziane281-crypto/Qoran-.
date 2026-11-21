@@ -35,6 +35,25 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Keep audio playing in background
+        run: |
+          cat > android/app/src/main/java/com/zayan/mushaf/MainActivity.java <<'EOF'
+          package com.zayan.mushaf;
+
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+            @Override
+            public void onPause() {
+              super.onPause();
+              if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().onResume();
+                getBridge().getWebView().resumeTimers();
+              }
+            }
+          }
+          EOF
+
       - name: Set app icon
         run: |
           R=android/app/src/main/res
@@ -45,6 +64,11 @@ jobs:
               convert icon.png -resize ${p}x${p} $R/mipmap-$d/$n.png
             done
           done
+
+      - name: Use fixed signing key
+        run: |
+          mkdir -p ~/.android
+          cp debug.keystore ~/.android/debug.keystore
 
       - name: Sync
         run: npx cap sync android
